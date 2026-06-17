@@ -1,0 +1,10 @@
+<?php
+// Salin file ini menjadi config.php lalu isi sesuai server kamu.
+// config.php TIDAK boleh di-commit (sudah masuk .gitignore).
+
+return [
+    'host' => '127.0.0.1',
+    'name' => 'master_icd_ixx',
+    'user' => 'root',
+    'pass' => '',
+];
