@@ -228,9 +228,14 @@ if (isset($_GET['api'])) {
             margin-bottom: 8px;
         }
 
-        .searchbar input {
+        .inputwrap {
+            position: relative;
             flex: 1;
-            padding: 12px 14px;
+        }
+
+        .searchbar input {
+            width: 100%;
+            padding: 12px 40px 12px 14px;
             border-radius: 8px;
             border: 1px solid var(--line);
             background: var(--card);
@@ -241,6 +246,35 @@ if (isset($_GET['api'])) {
 
         .searchbar input:focus {
             border-color: var(--accent);
+        }
+
+        .clearbtn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            background: var(--line);
+            color: var(--txt);
+            font-size: 15px;
+            line-height: 1;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        .clearbtn:hover {
+            background: var(--accent);
+            color: #0f172a;
+        }
+
+        .clearbtn.show {
+            display: flex;
         }
 
         .meta {
@@ -340,7 +374,10 @@ if (isset($_GET['api'])) {
         </div>
 
         <div class="searchbar">
-            <input id="q" type="text" placeholder="Ketik kode (mis. A09) atau nama (mis. diabetes)…" autocomplete="off">
+            <div class="inputwrap">
+                <input id="q" type="text" placeholder="Ketik kode (mis. A09) atau nama (mis. diabetes)…" autocomplete="off">
+                <button id="clear" class="clearbtn" type="button" title="Hapus pencarian" aria-label="Hapus pencarian">×</button>
+            </div>
         </div>
 
         <div class="meta" id="meta">Memuat…</div>
@@ -433,6 +470,7 @@ if (isset($_GET['api'])) {
                 state.q = code;
                 state.page = 1;
                 $('#q').value = code;
+                $('#clear').classList.add('show');
                 await load();
                 // buka baris pertama (kode persisnya) otomatis
                 const first = document.querySelector('.row');
@@ -457,8 +495,20 @@ if (isset($_GET['api'])) {
         $('#q').addEventListener('input', e => {
             state.q = e.target.value.trim();
             state.page = 1;
+            $('#clear').classList.toggle('show', e.target.value.length > 0);
             clearTimeout(state.timer);
             state.timer = setTimeout(load, 300); // debounce
+        });
+
+        $('#clear').addEventListener('click', () => {
+            const inp = $('#q');
+            inp.value = '';
+            state.q = '';
+            state.page = 1;
+            $('#clear').classList.remove('show');
+            clearTimeout(state.timer);
+            inp.focus();
+            load();
         });
 
         document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
@@ -472,6 +522,9 @@ if (isset($_GET['api'])) {
                 index: 'Ketik istilah (mis. fracture, vertigo, abscess)…'
             };
             $('#q').placeholder = ph[state.type];
+            $('#q').value = '';
+            state.q = '';
+            $('#clear').classList.remove('show');
             load();
         }));
 
