@@ -2,11 +2,6 @@
 config.php
 .env
 
-# Dump database (besar & sensitif lisensi/distribusi)
-*.sql
-*.sql.gz
-*.zip
-
 # Dependency (kalau nanti pakai composer)
 /vendor/
 
