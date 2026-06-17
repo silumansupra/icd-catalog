@@ -1,0 +1,49 @@
+# ============================================================
+#  .htaccess — Katalog ICD (Apache 2.4+)
+# ============================================================
+
+# --- Matikan directory listing ---
+Options -Indexes
+
+# --- Blokir akses ke file sensitif ---
+<FilesMatch "(^\.|\.(sql|sql\.gz|md|example\.php|log|env|sh|ini|json)$|config\.php)">
+    Require all denied
+</FilesMatch>
+
+# Izinkan kembali index.php (jaga-jaga jika tertangkap pola di atas)
+<Files "index.php">
+    Require all granted
+</Files>
+
+# --- Blokir akses langsung ke dotfiles (.git, .env, dll) ---
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# --- Cegah eksekusi file di folder upload (jika ada nanti) ---
+# <Directory "/path/to/uploads">
+#     php_admin_flag engine off
+# </Directory>
+
+# --- Security headers (lapis kedua, selain yang di-set PHP) ---
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    # HSTS — aktifkan HANYA jika sudah pakai HTTPS penuh
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Sembunyikan versi PHP
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
+
+# --- Sembunyikan signature server ---
+ServerSignature Off
+
+# --- Batasi metode HTTP (hanya GET/POST/HEAD) ---
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} !^(GET|POST|HEAD)$
+    RewriteRule .* - [F]
+</IfModule>

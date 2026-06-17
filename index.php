@@ -42,8 +42,69 @@ function json_out($data)
     exit;
 }
 
+// ---------- KEAMANAN: helper IP klien ----------
+function client_ip()
+{
+    // Catatan: header X-Forwarded-For bisa dipalsukan. Hanya percaya jika
+    // aplikasi berada di belakang reverse proxy/Cloudflare yang kamu kontrol.
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $k) {
+        if (!empty($_SERVER[$k])) {
+            $ip = trim(explode(',', $_SERVER[$k])[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+        }
+    }
+    return '0.0.0.0';
+}
+
+// ---------- KEAMANAN: rate limiter sederhana (file-based, sliding window) ----------
+// Default: maks 60 request / 60 detik per IP untuk endpoint API.
+function rate_limit($maxReq = 60, $windowSec = 60)
+{
+    $dir = sys_get_temp_dir() . '/icd_ratelimit';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+
+    $ip   = client_ip();
+    $file = $dir . '/' . hash('sha256', $ip) . '.json';
+    $now  = time();
+
+    $fp = @fopen($file, 'c+');
+    if ($fp === false) return; // gagal buka file → jangan blokir layanan
+    flock($fp, LOCK_EX);
+
+    $raw  = stream_get_contents($fp);
+    $hits = $raw ? json_decode($raw, true) : [];
+    if (!is_array($hits)) $hits = [];
+
+    // buang timestamp di luar window
+    $hits = array_values(array_filter($hits, fn($t) => $t > $now - $windowSec));
+
+    if (count($hits) >= $maxReq) {
+        flock($fp, LOCK_UN);
+        fclose($fp);
+        $retry = $windowSec - ($now - min($hits));
+        http_response_code(429);
+        header('Retry-After: ' . max(1, $retry));
+        json_out(['ok' => false, 'msg' => 'Terlalu banyak permintaan. Coba lagi nanti.']);
+    }
+
+    $hits[] = $now;
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($hits));
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
+// ---------- KEAMANAN: security headers (berlaku untuk semua response) ----------
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
+header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'self'; frame-ancestors 'none'");
+
 // ---------- API ENDPOINT ----------
 if (isset($_GET['api'])) {
+    rate_limit(60, 60); // batasi 60 req / menit / IP
+
     $action  = $_GET['api'];
     $q       = trim($_GET['q'] ?? '');
     $page    = max(1, (int)($_GET['page'] ?? 1));
@@ -144,8 +205,9 @@ if (isset($_GET['api'])) {
         }
         json_out(['ok' => false, 'msg' => 'unknown action']);
     } catch (Throwable $e) {
+        error_log('ICD API error: ' . $e->getMessage());
         http_response_code(500);
-        json_out(['ok' => false, 'msg' => $e->getMessage()]);
+        json_out(['ok' => false, 'msg' => 'Terjadi kesalahan pada server.']);
     }
 }
 ?>
